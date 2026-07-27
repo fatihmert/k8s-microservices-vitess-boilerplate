@@ -16,7 +16,8 @@ resources:
   - monitoring/servicemonitors.yaml
   - monitoring/vitess-podmonitor.yaml
   - monitoring/prometheus-rules.yaml
-  - monitoring/monitoring-ingress.yaml
+  - monitoring/alertmanager-config.yaml
+
 
 # Otomatik Secret üreteci (Vitess VTGate Auth)
 secretGenerator:
@@ -35,4 +36,22 @@ configMapGenerator:
         grafana_dashboard: "1"
     files:
       - monitoring/dashboards/cyclechain-overview.json
+  - name: cyclechain-application-dashboard
+    options:
+      labels:
+        grafana_dashboard: "1"
+    files:
+      - monitoring/dashboards/cyclechain-application.json
+  - name: cyclechain-datastores-dashboard
+    options:
+      labels:
+        grafana_dashboard: "1"
+    files:
+      - monitoring/dashboards/cyclechain-datastores.json
+  - name: cyclechain-vitess-dashboard
+    options:
+      labels:
+        grafana_dashboard: "1"
+    files:
+      - monitoring/dashboards/cyclechain-vitess.json
 

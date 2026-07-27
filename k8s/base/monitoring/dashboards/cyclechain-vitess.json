@@ -1,0 +1,58 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Vitess VTGate Proxy Durumu",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "kube_pod_status_ready{pod=~'.*-vtgate-.*'}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Aktif VTGate Pod Sayısı",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "count(kube_pod_info{pod=~'.*-vtgate-.*'})", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Sağlıklı Vitess Tablet Sayısı",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        { "expr": "count(kube_pod_status_ready{pod=~'.*-vttablet-.*'})", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "VTGate Sorgu Trafiği (QPS)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "sum(rate(vtgate_requests[1m])) by (keyspace)", "legendFormat": "{{keyspace}} QPS", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Vitess Tablet Replication Lag",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "vttablet_replication_lag_seconds", "legendFormat": "{{shard}} Replication Lag", "refId": "A" }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["cyclechain", "vitess", "sharding", "database"],
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "CycleChain Vitess Sharded MySQL Cluster",
+  "uid": "cyclechain-vitess"
+}

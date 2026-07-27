@@ -10,5 +10,5 @@ patches:
   - path: patches/ingress-patch.yaml
   - path: patches/app-patch.yaml
   - path: patches/phpmyadmin-patch.yaml
-  - path: patches/monitoring-ingress-patch.yaml
+
 

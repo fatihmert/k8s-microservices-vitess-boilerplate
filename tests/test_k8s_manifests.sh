@@ -109,6 +109,10 @@ assert_test "PrometheusRule Alarm Kuralları Tanımlı" $?
 echo "$BASE_MANIFEST" | grep -q "grafana_dashboard:"
 assert_test "Grafana Dashboard ConfigMap (Sidecar Auto-Discovery) Tanımlı" $?
 
+# Test: AlertmanagerConfig Kaynağı
+echo "$BASE_MANIFEST" | grep -q "kind: AlertmanagerConfig"
+assert_test "AlertmanagerConfig Bildirim Kanalı Tanımlı" $?
+
 echo -e "\n=========================================================="
 echo -e " 📊 TEST SONUÇLARI: ${GREEN}${PASSED_TESTS} Başarılı${NC} | ${RED}${FAILED_TESTS} Hatalı${NC}"
 echo "=========================================================="

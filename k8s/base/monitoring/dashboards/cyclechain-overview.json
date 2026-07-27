@@ -1,52 +1,87 @@
 {
-  "annotations": {
-    "list": []
-  },
+  "annotations": { "list": [] },
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
   "links": [],
   "liveNow": false,
   "panels": [
     {
       "type": "stat",
-      "title": "Uygulama Pod Durumu",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "title": "Uygulama Pod Sayısı (HPA Active Replicas)",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
       "targets": [
-        { "expr": "sum(kube_deployment_status_replicas_available{deployment=\"app-deployment\"})", "refId": "A" }
-      ]
+        { "expr": "sum(kube_deployment_status_replicas_available{deployment='app-deployment'})", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 2 }] } } }
     },
     {
       "type": "stat",
-      "title": "MySQL Durumu",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "title": "MySQL Birincil DB Durumu",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
       "targets": [
         { "expr": "mysql_up", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } }
+    },
+    {
+      "type": "stat",
+      "title": "Redis Önbellek Durumu",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "redis_up", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } }
+    },
+    {
+      "type": "stat",
+      "title": "Vitess VTGate Proxy Durumu",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "kube_pod_status_ready{pod=~'.*-vtgate-.*'}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } }
+    },
+    {
+      "type": "stat",
+      "title": "Toplam HTTP İstek Hızı (RPS)",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [
+        { "expr": "sum(rate(nginx_http_requests_total[1m]))", "refId": "A" }
       ]
     },
     {
       "type": "stat",
-      "title": "Redis Durumu",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "title": "5xx Hata Oranı",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
       "targets": [
-        { "expr": "redis_up", "refId": "A" }
+        { "expr": "sum(rate(nginx_http_requests_total{status=~'5..'}[1m]))", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.01 }] } } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Nginx Toplam HTTP Trafiği (RPS)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "sum(rate(nginx_http_requests_total[1m]))", "legendFormat": "RPS", "refId": "A" }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Nginx İstek Hızı (RPS)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "title": "Uygulama Pod Bellek Kullanım Eğrisi",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
-        { "expr": "rate(nginx_http_requests_total[1m])", "refId": "A" }
+        { "expr": "sum(container_memory_working_set_bytes{pod=~'app-deployment-.*', container!=''}) by (pod)", "legendFormat": "{{pod}} RAM", "refId": "A" }
       ]
     }
   ],
-  "refresh": "10s",
+  "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["cyclechain", "kubernetes"],
-  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["cyclechain", "overview", "kubernetes"],
+  "time": { "from": "now-30m", "to": "now" },
   "title": "CycleChain System Overview",
   "uid": "cyclechain-overview"
 }
