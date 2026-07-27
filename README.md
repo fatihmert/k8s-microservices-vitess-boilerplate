@@ -24,7 +24,77 @@ Sistem; web sunucu (Nginx), uygulama katmanı (PHP-FPM), önbellek katmanı (Red
 
 ## 2. Sistem Mimarisi
 
-Mimaride Ingress Controller tüm trafiği kabul eder ve ilgili servislere yönlendirir:
+### 📊 Detaylı Kubernetes Mimari Şeması (Mermaid Diagram)
+
+```mermaid
+graph TD
+    Client["🌐 İstemci / Tarayıcı"] -->|app.local / app.cyclechain.io| Ingress["🚦 Ingress Controller (Nginx Ingress)"]
+    Client -->|grafana.local / grafana.cyclechain.io| Ingress
+    Client -->|prometheus.local / prometheus.cyclechain.io| Ingress
+    Client -->|pma.local (Dev Only)| Ingress
+
+    subgraph Kubernetes Cluster
+        CertManager["🔐 Cert-Manager (Let's Encrypt SSL)"] .-> Ingress
+
+        subgraph Application Namespace ["Application Namespace (default)"]
+            Ingress -->|Port 80| AppService["Service: app-service"]
+            Ingress -->|Port 8080| PMAService["Service: pma-service"]
+
+            subgraph AppPod ["App Pod (Multi-Container Deployment)"]
+                AppService --> NginxContainer["Konteyner: Nginx Alpine"]
+                NginxContainer -->|FastCGI 127.0.0.1:9000| PHPContainer["Konteyner: PHP 8.2-FPM"]
+                NginxExporter["Sidecar: nginx-exporter (Port 9113)"] .->|Stub Status 8081| NginxContainer
+            end
+
+            HPA["⚡ HPA (Auto-scaler Min 2 - Max 10)"] .->|Target CPU 70% / RAM 80%| AppPod
+
+            subgraph MySQLPod ["MySQL Pod (Datastore)"]
+                MySQLService["Service: mysql-service"] --> MySQLContainer["Konteyner: MySQL 8.0"]
+                MySQLExporter["Sidecar: mysqld-exporter (Port 9104)"] .-> MySQLContainer
+                MySQLContainer --- MySQLPVC[("PersistentVolumeClaim (10Gi Storage)")]
+            end
+
+            subgraph RedisPod ["Redis Pod (Cache Layer)"]
+                RedisService["Service: redis-service"] --> RedisContainer["Konteyner: Redis 7"]
+                RedisExporter["Sidecar: redis-exporter (Port 9121)"] .-> RedisContainer
+            end
+
+            subgraph VitessCluster ["Vitess Sharded MySQL Cluster"]
+                VTGateService["Service: vtgate-zone1-service"] --> VTGate["Vitess VTGate Proxy (Port 15306)"]
+                VTGate --> Vtctld["Vitess Admin / vtctld"]
+                VTGate --> VTTablets["Vitess MySQL Shard Tablets"]
+                VTGate --> Etcd[("Vitess Topology etcd")]
+            end
+
+            BlackboxPod["Pod: Blackbox Exporter (Port 9115)"]
+            PMAService --> PMAPod["Pod: phpMyAdmin (Dev: 1 | Prod: 0 Replicas)"]
+
+            PHPContainer -->|Port 3306| MySQLService
+            PHPContainer -->|Port 6379| RedisService
+            PHPContainer -->|Port 15306| VTGateService
+        end
+
+        subgraph Monitoring Namespace ["Monitoring Namespace (monitoring)"]
+            Ingress -->|Port 80| GrafanaService["Service: Grafana"]
+            Ingress -->|Port 9090| PrometheusService["Service: Prometheus"]
+
+            GrafanaService --> Grafana["📊 Grafana (Dashboards & Visualizations)"]
+            PrometheusService --> Prometheus["📈 Prometheus Server (Metrics Engine)"]
+            Prometheus --> Alertmanager["🔔 Alertmanager (Notification Router)"]
+
+            Alertmanager --> Notifications["✉️ Discord / Slack / Webhook"]
+
+            Prometheus .->|Scrape ServiceMonitor 9113| NginxExporter
+            Prometheus .->|Scrape ServiceMonitor 9104| MySQLExporter
+            Prometheus .->|Scrape ServiceMonitor 9121| RedisExporter
+            Prometheus .->|Scrape PodMonitor 15001| VTGate
+            Prometheus .->|Probe CRD 9115| BlackboxPod
+            BlackboxPod .->|Synthetic HTTP 200 & SSL Probe| Ingress
+        end
+    end
+```
+
+### 🗺️ Metin Altyapı Akış Haritası
 
 ```text
 Client
