@@ -489,11 +489,32 @@ kubectl delete -k k8s/overlays/prod
 
 ---
 
-## 26. Bilinen Riskler
+## 26. Bilinen Riskler ve Mimari Gerekçeleri (Q&A Formatı)
 
-1. **MySQL Tek Replica**: `mysql-deployment` tek replica olarak çalışmaktadır. Fiziksel node arızasında HA sağlamaz. High Availability için StatefulSet veya Vitess sharding tercih edilmelidir.
-2. **Redis Restart Oturum Kaybı**: Redis ephemeral (AOF/RDB kapalı) çalıştığı için Pod yeniden başladığında önbellek ve oturum verileri temizlenir.
-3. **Vitess etcd Verisi**: Vitess topology etcd backend'i sıfırlanırsa Vitess sharding metadata'sı kaybolur.
+Bu bölümde, projenin mevcut mimarisindeki bilinçli tasarım tercihleri, potansiyel riskler ve bu risklerin neden mevcut aşamada bu şekilde yapılandırıldığı SRE/DevOps bakış açısıyla açıklanmaktadır:
+
+### ❓ S1: MySQL Neden Tek Replikalı (`replicas: 1`) Çalışıyor? Neden StatefulSet veya Multi-Master Kurulmadı?
+* **Mimari Gerekçe**: 
+  1. **Kaynak Tüketimi ve Maliyet Optimizasyonu**: Yerel (Dev) ve başlangıç seviyesi ortamlarda çoklu MySQL nodu çalıştırmak yüksek CPU/RAM ve diski boşa harcar.
+  2. **Vitess Sharding Sorumluluk Ayrımı**: Projemizde veritabanı seviyesinde Yüksek Erişilebilirlik (HA) ve Yatay Ölçekleme sorumluluğu birincil `mysql-deployment` Pod'una değil, projemizde hazır bulunan **Vitess Cluster (`VTGate` + `VTTablets`)** mimarisine devredilmiştir.
+* **Production Önerisi**: Canlı ortamda yük durumuna göre Vitess sharded MySQL tablet sayıları artırılmalı veya `StatefulSet` + PVC mimarisine geçilmelidir.
+
+### ❓ S2: Redis Pod'u Yeniden Başladığında Veri Kaybı Riski Var mı? Neden PVC / AOF Kalıcılığı Açılmadı?
+* **Mimari Gerekçe**: 
+  1. **Stateless (Durumsuz) Önbellek Tasarımı**: Redis bu projede **asli veri deposu değil, yüksek hızlı In-Memory önbellek (Cache) katmanı** olarak konumlandırılmıştır.
+  2. **Sub-Millisecond Performans**: Disk AOF/RDB senkronizasyonunu açmak Redis'in gecikme (latency) sürelerini artırır. Oturum ve önbellek verileri geçici olduğu için Redis restart olsa dahi uygulama veriyi MySQL/Vitess katmanından yeniden oluşturabilir.
+* **Production Önerisi**: Oturum kalıcılığı isteniyorsa Redis Sentinel veya Redis Cluster yapısına geçilebilir.
+
+### ❓ S3: Vitess etcd Topolojisi Neden Tek Küme İçi Pod Olarak Çalışıyor?
+* **Mimari Gerekçe**: 
+  1. **Self-Contained Taşınabilirlik**: Projenin herhangi bir bağımlılık olmaksızın `kubectl apply -k` komutuyla Minikube veya Kind üzerinde saniyeler içinde ayağa kalkabilmesi hedeflenmiştir.
+  2. **Kolay Yamalama (Patching)**: Kustomize overlay mimarimiz sayesinde Production ortamında dışarıdaki yönetilen (Managed) bir etcd kümesine bağlanmak sadece bir yama (`patch`) dosyasına bakar.
+
+### ❓ S4: phpMyAdmin Production Ortamında Neden Devre Dışı Bırakıldı (`replicas: 0`)?
+* **Mimari Gerekçe**: 
+  1. **Saldırı Yüzeyinin Küçültülmesi (Attack Surface Reduction)**: Web tabanlı DB yönetim arayüzleri kaba kuvvet (brute-force) ve yetkisiz erişim denemeleri için birincil hedeftir.
+  2. **Zero-Trust Güvenlik**: Production ortamında veritabanı erişimi web arayüzlerinden değil, yetkili SRE mühendislerinin güvenli `kubectl port-forward` veya Bastion Host/VPN üzerinden yapılması güvenlik standardıdır.
+
 
 ---
 
