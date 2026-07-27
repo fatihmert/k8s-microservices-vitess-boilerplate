@@ -137,12 +137,18 @@ Geliştirme ortamında varsayılan domainler: `app.local`, `pma.local`, `grafana
    kubectl apply -k k8s/overlays/dev
    ```
 
-2. **Hosts Dosyası Tanımlaması (`/etc/hosts`)**:
+2. **Minikube Tünelini Başlatma (macOS / Docker Driver)**:
+   macOS ağ sanallaştırması sebebiyle Ingress yönlendirmelerini `127.0.0.1` port 80/443'e bağlamak için ayrı bir terminal sekmesinde şu komut çalıştırılır (sekme açık kalmalıdır):
+   ```bash
+   sudo minikube tunnel
+   ```
+
+3. **Hosts Dosyası Tanımlaması (`/etc/hosts`)**:
    ```bash
    sudo sh -c 'echo "127.0.0.1 app.local pma.local grafana.local prometheus.local" >> /etc/hosts'
    ```
 
-3. **Erişim**:
+4. **Tarayıcı Üzerinden Erişim**:
    * Uygulama: `http://app.local`
    * phpMyAdmin: `http://pma.local`
    * Grafana Panosu: `http://grafana.local`
