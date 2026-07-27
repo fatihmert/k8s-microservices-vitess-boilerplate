@@ -7,6 +7,7 @@ metadata:
   name: mysql-secret
 type: Opaque
 data:
+  # Varsayılan geliştirme parolası (rootpass). Prod ortamında harici Secret üreteci/SOPS/Vault önerilir.
   MYSQL_ROOT_PASSWORD: cm9vdHBhc3M=
 ---
 # ==============================================================================
@@ -32,6 +33,8 @@ metadata:
   name: mysql-deployment
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mysql
@@ -40,9 +43,39 @@ spec:
       labels:
         app: mysql
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: mysql
           image: mysql:8.0
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          startupProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 10
+          readinessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           env:
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:

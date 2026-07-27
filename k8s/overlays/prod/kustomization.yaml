@@ -5,6 +5,9 @@ kind: Kustomization
 resources:
   - ../../base
 
-# Canlı ortama özel Ingress, Domain ve SSL (Let's Encrypt) Yamaları (Patches)
+# Canlı ortama özel Ingress, Pod Anti-Affinity, Güvenlik ve SSL Yamaları (Patches)
 patches:
   - path: patches/ingress-patch.yaml
+  - path: patches/app-patch.yaml
+  - path: patches/phpmyadmin-patch.yaml
+

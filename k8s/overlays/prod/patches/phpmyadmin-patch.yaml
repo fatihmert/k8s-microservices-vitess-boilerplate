@@ -1,0 +1,12 @@
+# ==============================================================================
+# Production phpMyAdmin Yaması (Güvenlik Kısıtlaması - Replicas: 0)
+# ==============================================================================
+# Production ortamında phpMyAdmin halka açık olarak çalıştırılmamalıdır.
+# Erişim gerektiğinde admin port-forwarding (kubectl port-forward) veya private VPN kullanılır.
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pma-deployment
+spec:
+  replicas: 0

@@ -12,7 +12,6 @@ spec:
   tls:
     - hosts:
         - app.cyclechain.io
-        - pma.cyclechain.io
       secretName: app-tls-cert
   rules:
     - host: app.cyclechain.io
@@ -25,13 +24,3 @@ spec:
                 name: app-service
                 port:
                   number: 80
-    - host: pma.cyclechain.io
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: pma-service
-                port:
-                  number: 8080

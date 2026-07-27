@@ -7,204 +7,400 @@
 [![MySQL](https://img.shields.io/badge/MySQL-8.0_DB-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![Kustomize](https://img.shields.io/badge/Kustomize-Base_%26_Overlays-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kustomize.io/)
 
-Bu proje, **Endüstri Standardı (In-The-Wild)** mimari prensipleriyle hazırlanmış, production-ready bir **Kubernetes Mikroservis & Yatay Veritabanı Bölümleme (Vitess Sharded MySQL)** başlangıç şablonudur (Boilerplate). 
+---
 
-Geliştiricilerin ve DevOps mühendislerinin bulut ortamında (EKS, GKE, AKS) veya yerel ortamlarda (Minikube, MicroK8s) yüksek erişilebilirlikli (HA), ölçeklenebilir ve güvenli uygulamalar ayağa kaldırması için tasarlanmıştır.
+## 1. Projenin Amacı
+
+Bu proje; modern, ölçeklenebilir ve yüksek erişilebilirlikli mikroservis mimarisini bulut ve yerel Kubernetes kümeleri üzerinde çalıştırmak için hazırlanmış **Production-Ready Kubernetes & Vitess Sharding Başlangıç Şablonudur (Boilerplate)**.
+
+Sistem; web sunucu (Nginx), uygulama katmanı (PHP-FPM), önbellek katmanı (Redis 7), birincil veritabanı (MySQL 8.0) ve yatay veritabanı bölümleme/ölçeklendirme altyapısı olan **Vitess Sharded MySQL Proxy (`VTGate`)** bileşenlerini Kustomize yapısıyla sunar.
 
 ---
 
-## 🏛️ Mimari Özellikler ve Bileşenler
+## 2. Sistem Mimarisi
 
-Proje aşağıdaki modern mikromimari bileşenlerini içerir:
+Mimaride Ingress Controller trafiği kabul eder ve ilgili servislere yönlendirir:
 
-* 🚀 **Multi-Container App Pod (Nginx + PHP-FPM 8.2)**: Nginx Alpine ve PHP 8.2-FPM konteynerlerini tek bir Pod içerisinde `initContainer` dosya senkronizasyonu ile çalıştırır. Composer ve GuzzleHTTP entegredir.
-* ⚡ **Vitess CNCF MySQL Sharding Cluster**: MySQL veritabanlarını yatay olarak bölümleyen CNCF mezunu Vitess kümesi (`VitessCluster`), `vtctld` yönetim paneli ve `vtgate` MySQL proxy bileşenlerini barındırır. Statik kimlik doğrulama (`vtgate-auth`) yapılandırılmıştır.
-* 🔴 **Redis 7 Caching Layer**: Yüksek hızlı önbellekleme ve oturum yönetimi için Redis veritabanı servisi.
-* 🐬 **MySQL 8.0 Primary Datastore**: Kalıcı depolama alanı (`PersistentVolumeClaim - PVC`) ve gizli bilgiler (`Secret`) ile korunan birincil ilişkisel veritabanı.
-* 📈 **Horizontal Pod Autoscaler (HPA)**: Trafik dalgalanmalarına göre Pod sayısını otomatik olarak **min 2** - **max 10** arasında ölçeklendirir (CPU %70, RAM %80 eşiği).
-* 🎯 **Kustomize (Base & Overlays Mimarisi)**: `base` katmanından türetilen `dev` ve `prod` ortamları ile kod tekrarı olmaksızın farklı konfigürasyonları yönetir.
-* 🚦 **Ingress Controller & SSL (Let's Encrypt)**: Local geliştirmede `app.local` / `pma.local`, canlı ortamda `app.cyclechain.io` / `pma.cyclechain.io` domain yönlendirmeleri ve otomatik TLS sertifikasyonu.
-
----
-
-## 📊 Sistem Mimari Şeması
-
-```mermaid
-graph TD
-    Client[🌐 İstemci / Tarayıcı] -->|app.cyclechain.io / pma.cyclechain.io| Ingress[🚦 Ingress Controller]
-    
-    subgraph Kubernetes Cluster
-        Ingress -->|Port 80| AppService[Service: app-service]
-        Ingress -->|Port 8080| PMAService[Service: pma-service]
-        
-        subgraph App Pod - Multi Container
-            AppService --> Nginx[Konteyner: Nginx]
-            Nginx -->|FastCGI| PHP[Konteyner: PHP 8.2-FPM]
-        end
-        
-        PMAService --> PMA[Pod: phpMyAdmin]
-        
-        PHP -->|Port 3306| MySQLService[Service: mysql-service] --> MySQL[(MySQL 8.0 DB + PVC)]
-        PHP -->|Port 6379| RedisService[Service: redis-service] --> Redis[(Redis 7 Cache)]
-        PHP -->|Port 15306| VTGateService[Service: vtgate-zone1-service] --> VTGate[Vitess VTGate Proxy]
-        
-        VTGate --> Vtctld[Vitess Admin / vtctld]
-        VTGate --> Etcd[(Vitess Topology etcd)]
-    end
+```text
+Client
+  ↓
+Ingress Controller
+  ├── app-service (ClusterIP:80)
+  │     └── App Pod (Multi-Container)
+  │           ├── Nginx Alpine (FastCGI -> 127.0.0.1:9000)
+  │           └── PHP 8.2-FPM
+  │                 ├── MySQL 8.0 (mysql-service:3306)
+  │                 ├── Redis 7 (redis-service:6379)
+  │                 └── Vitess VTGate (vtgate-zone1-service:15306)
+  │                       ├── Vitess Tablets (MySQL Shards)
+  │                       ├── vtctld (Vitess Admin)
+  │                       └── etcd topology
+  │
+  └── pma-service (ClusterIP:8080 - Dev ortamı veya Private Admin Port-Forwarding)
+        └── phpMyAdmin
 ```
 
 ---
 
-## 📁 Proje Dosya ve Klasör Hiyerarşisi
+## 3. Bileşenler
+
+| Bileşen | Sürüm / Detay | Açıklama |
+| :--- | :--- | :--- |
+| **Nginx** | `nginx:alpine` | Web sunucu & PHP-FPM ters proxy (Port 80) |
+| **PHP-FPM** | `php:8.2-fpm-alpine` | Özel imaj (GuzzleHTTP + Composer), Port 9000 |
+| **Redis** | `redis:7-alpine` | Ön bellek & Oturum katmanı (Port 6379) |
+| **MySQL** | `mysql:8.0` | Birincil ilişkisel veritabanı (Port 3306, PVC ile kalıcı) |
+| **Vitess** | `planetscale.com/v2` (VitessCluster) | CNCF mezunu yatay MySQL bölümleme & Proxy (Port 15306) |
+| **phpMyAdmin** | `phpmyadmin/phpmyadmin` | Veritabanı yönetim arayüzü (Dev: `pma.local`, Prod: Güvenlik amacıyla kapalı) |
+| **HPA** | `autoscaling/v2` | CPU (%70) ve RAM (%80) metriklerine göre (Min 2 - Max 10 Pod) otomatik ölçeklendirme |
+| **Kustomize** | `base`, `dev`, `prod` | Çevreye özel (Dev/Prod) konfigürasyon ayrımı ve deklaratif yama yönetimi |
+
+---
+
+## 4. Klasör Yapısı
 
 ```text
 .
-├── .dockerignore                 # Docker build sürecine dahil edilmeyecek dosyalar
-├── app/                          # Uygulama Kaynak Kodları ve Dockerfile Klasörü
+├── .dockerignore                 # Docker build hariç tutma kuralları
+├── app/                          # PHP Uygulama Kaynak Kodları ve Dockerfile
 │   ├── Dockerfile                # PHP 8.2-FPM + Composer + GuzzleHTTP imaj tanımı
-│   └── index.php                 # PHP uygulama kodları (MySQL, Redis, Vitess ve API testleri)
-├── kustomization.yaml            # Kök dizin varsayılan Kustomize girişi
-├── README.md                     # Proje dokümantasyonu
+│   └── index.php                 # Bağlantı ve API sağlık test kodları
+├── kustomization.yaml            # Kök dizin varsayılan Kustomize tanımı (dev katmanını gösterir)
+├── README.md                     # Sistem dokümantasyonu
 └── k8s/                          # Kubernetes Manifestleri Klasörü
-    ├── base/                     # Temel (Base) Altyapı Tanımları
-    │   ├── kustomization.yaml    # Base Kustomize konfigürasyonu (secretGenerator & configMapGenerator)
+    ├── base/                     # Temel Altyapı Tanımları
+    │   ├── kustomization.yaml    # Base Kustomize manifest listesi & secret/configmap jeneratörleri
     │   ├── apps/                 # Uygulama Katmanı Manifestleri
-    │   │   ├── app.yaml          # Nginx + PHP-FPM Deployment & App Service
-    │   │   ├── hpa.yaml          # Horizontal Pod Autoscaler (Otomatik Pod Ölçeklendirme)
-    │   │   ├── ingress.yaml      # HTTP Ingress Controller & Domain Yönlendirme
+    │   │   ├── app.yaml          # Nginx + PHP-FPM Deployment & Service (Probes, Graceful Shutdown, SecurityContext)
+    │   │   ├── hpa.yaml          # Horizontal Pod Autoscaler
+    │   │   ├── ingress.yaml      # HTTP Ingress Controller & Local Domain Kuralları
     │   │   └── phpmyadmin.yaml   # phpMyAdmin Deployment & Service
     │   ├── configs/              # Konfigürasyon Dosyaları
-    │   │   ├── default.conf      # Nginx Server Konfigürasyonu
-    │   │   └── users.json        # Vitess VTGate MySQL Statik Kimlik Doğrulama Dosyası
-    │   └── datastores/           # Veritabanı ve Önbellek Katmanı
+    │   │   ├── default.conf      # Nginx Konfigürasyonu
+    │   │   └── users.json        # Vitess VTGate Statik Kimlik Doğrulama Dosyası
+    │   └── datastores/           # Veritabanı & Cache Katmanı
     │       ├── mysql.yaml        # MySQL Secret, PVC, Deployment & Service
-    │       ├── redis.yaml        # Redis Deployment & Service
-    │       └── vitess.yaml       # Vitess CNCF MySQL Sharded Cluster & VTGate Service
-    └── overlays/                 # Ortama Özel Yapılandırmalar (Environments)
-        ├── dev/                  # Geliştirme (Development) Ortamı
+    │       ├── redis.yaml        # Redis Deployment (LRU Eviction) & Service
+    │       └── vitess.yaml       # VitessCluster CRD & VTGate Service
+    └── overlays/                 # Ortama Özel Yapılandırmalar
+        ├── dev/                  # Development Ortamı
         │   └── kustomization.yaml
-        └── prod/                 # Canlı (Production) Ortamı
+        └── prod/                 # Production Ortamı
             ├── kustomization.yaml
             └── patches/
-                └── ingress-patch.yaml  # Canlı Domain (cyclechain.io) ve SSL Yaması
+                ├── app-patch.yaml         # Prod Replicas (2) & Pod Anti-Affinity
+                ├── ingress-patch.yaml     # Prod SSL/TLS & cyclechain.io Ingress Yaması
+                └── phpmyadmin-patch.yaml  # Prod Güvenlik Yaması (Replicas: 0)
 ```
 
 ---
 
-## 🚀 Derleme ve Kurulum Adımları
+## 5. Gereksinimler
 
-### 1. Vitess Operatörünün (CRDs) Kümeye Yüklenmesi
+* **Kubernetes Cluster**: v1.26+ (Minikube, MicroK8s, EKS, GKE, AKS)
+* **kubectl**: v1.26+
+* **Vitess Operator**: Kümede `VitessCluster` CRD'lerinin tanımlı olması gerekir.
+* **NGINX Ingress Controller** & **cert-manager** (Production SSL için).
 
-Vitess veritabanı kümesini (`VitessCluster`) yönetebilmek için öncelikle Vitess Operator manifest dosyasının kütüğe uygulanması gerekmektedir:
+---
+
+## 6. Docker Image Build İşlemi
+
+Geliştirme ortamında (örneğin Minikube):
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/vitessio/vitess/main/examples/operator/operator.yaml
+eval $(minikube -p minikube docker-env)
+docker build -t my-php-app:v1 ./app
 ```
 
-### 2. VTGate Statik Kimlik Doğrulama Konfigürasyonu
-
-Vitess Proxy (`vtgate`) varsayılan olarak `static` kimlik doğrulama kullanır. Kullanıcı bilgileri `k8s/base/configs/users.json` dosyasında tanımlıdır:
-
-```json
-{
-  "app": [
-    {
-      "UserData": "app",
-      "Password": "apppassword"
-    }
-  ]
-}
-```
-Kustomize (`secretGenerator`), bu dosyayı otomatik olarak `vtgate-auth` adlı Kubernetes Secret'ına dönüştürür.
-
-### 3. Özel Uygulama İmajının Derlenmesi
-
-Minikube ortamında `app/` klasöründeki PHP ve Composer kütüphanelerini içeren imajı derlemek için:
+Veya Minikube doğrudan yerel imaj derleme:
 
 ```bash
 minikube image build -t my-php-app:v1 ./app
 ```
 
-### 4. Kustomize İle Altyapının Dağıtımı
+---
 
-**Geliştirme (Dev) Ortamı Dağıtımı:**
+## 7. Development Kurulumu
+
+Geliştirme ortamında varsayılan domainler: `app.local` ve `pma.local`.
+
+1. **Dev Ortamını Yayınlama**:
+   ```bash
+   kubectl apply -k k8s/overlays/dev
+   ```
+
+2. **Hosts Dosyası Tanımlaması (`/etc/hosts`)**:
+   ```bash
+   sudo sh -c 'echo "127.0.0.1 app.local pma.local" >> /etc/hosts'
+   ```
+
+3. **Erişim**:
+   * Uygulama: `http://app.local`
+   * phpMyAdmin: `http://pma.local`
+
+---
+
+## 8. Production Kurulumu
+
+Production ortamında canlı domainler: `app.cyclechain.io` (SSL/TLS ile).
+
+1. **Production Ortamını Yayınlama**:
+   ```bash
+   kubectl apply -k k8s/overlays/prod
+   ```
+
+2. **Gözlemlenen Production Özellikleri**:
+   * `app-deployment` min 2 replica ve **Pod Anti-Affinity** ile farklı node'larda çalışır.
+   * Ingress `cert-manager` Let's Encrypt entegrasyonu ile SSL sertifikasını otomatik yönetir.
+   * `phpmyadmin` kamuya açık değildir (replicas: 0).
+
+---
+
+## 9. Kustomize Kullanımı
+
+Manifestlerin çıktısını uygulamadan doğrulamak için:
+
 ```bash
-kubectl apply -k k8s/overlays/dev
+# Base katmanı kustomize doğrulaması
+kubectl kustomize k8s/base
+
+# Dev overlay kustomize doğrulaması
+kubectl kustomize k8s/overlays/dev
+
+# Prod overlay kustomize doğrulaması
+kubectl kustomize k8s/overlays/prod
 ```
 
-**Canlı (Prod - cyclechain.io) Ortamı Dağıtımı:**
-```bash
-kubectl apply -k k8s/overlays/prod
-```
+Farkları görüntülemek için:
 
-**Kök Dizinden Otomatik Dağıtım:**
 ```bash
-kubectl apply -k .
+kubectl diff -k k8s/overlays/prod
 ```
 
 ---
 
-## 🌐 Ingress ve Domain Yapılandırması
+## 10. Ingress ve Domain Yapılandırması
 
-### 1. Yerel Geliştirme Ortamı (Minikube & macOS)
-
-Ingress eklentisini aktifleştirin:
-```bash
-minikube addons enable ingress
-```
-
-macOS Docker Driver erişimi için tüneli başlatın (ayrı terminalde açık tutun):
-```bash
-sudo minikube tunnel
-```
-
-Lokal DNS yönlendirmesini (`/etc/hosts`) tanımlayın:
-```bash
-sudo sh -c 'echo "127.0.0.1 app.local pma.local" >> /etc/hosts'
-```
-
-* **Web Uygulaması**: `http://app.local`
-* **phpMyAdmin**: `http://pma.local`
+* **Base / Dev Ingress**: `app.local` ve `pma.local` host adları ile yönlendirme sağlar.
+* **Prod Ingress**: `app.cyclechain.io` alan adı için TLS sonlandırma sağlar. `proxy-body-size: 64m` ve zaman aşımı ayarları (connect/read/send timeout: 60s) yapılandırılmıştır.
 
 ---
 
-### 2. Canlı Ortam Yapılandırması (`cyclechain.io`)
+## 11. TLS ve cert-manager Kurulumu
 
-Production ortamında `k8s/overlays/prod` paketi kullanıldığında Ingress otomatik olarak canlı domainleri aktif eder:
+Production ortamında `cert-manager` Let's Encrypt `ClusterIssuer` kullanır. `k8s/overlays/prod/patches/ingress-patch.yaml` dosyasındaki annotation:
 
-* **Web Uygulaması**: `https://app.cyclechain.io`
-* **phpMyAdmin**: `https://pma.cyclechain.io`
-
-`cert-manager` ve Let's Encrypt entegrasyonu sayesinde SSL/TLS sertifikaları otomatik üretilir ve yenilenir.
-
----
-
-## ⚡ Otomatik Ölçeklendirme (Auto-Scaling)
-
-### Pod Seviyesi (HPA)
-Metrics Server aktifleştirildiğinde (`minikube addons enable metrics-server`), HPA yük durumuna göre Pod sayısını dinamik yönetir:
-```bash
-kubectl get hpa
+```yaml
+annotations:
+  cert-manager.io/cluster-issuer: letsencrypt-prod
+  nginx.ingress.kubernetes.io/ssl-redirect: "true"
 ```
 
-### Node / Cluster Seviyesi
-Bulut ortamlarında (AWS EKS, GCP GKE) Pod kapasitesi dolduğunda **Karpenter** veya **Cluster Autoscaler** otomatik olarak bulut sunucusu (EC2/VM) ekler ve siler.
+Sertifika secret'ı (`app-tls-cert`) cert-manager tarafından otomatik oluşturulur.
 
 ---
 
-## 🔍 İzleme ve Faydalı Komutlar
+## 12. Secret Yönetimi
 
-| Komut | Açıklama |
-| :--- | :--- |
-| `kubectl get pods` | Kümedeki tüm Pod'ların durumunu listeler. |
-| `kubectl get hpa` | Otomatik ölçeklendirme ve CPU/RAM kullanım metriklerini izler. |
-| `kubectl get ingress` | Ingress kurallarını, yönlendirmeleri ve adresleri listeler. |
-| `kubectl logs -l planetscale.com/component=vtgate` | Vitess VTGate proxy loglarını canlı izler. |
-| `kubectl port-forward svc/app-service 30080:80` | Web uygulamasını `http://localhost:30080` portuna sabit bağlar. |
-| `kubectl port-forward svc/pma-service 30880:8080` | phpMyAdmin'i `http://localhost:30880` portuna sabit bağlar. |
+Projede hassas veriler doğrudan Git deposunda açık metin saklanmamalıdır.
+
+* **MySQL Root Şifresi**: `k8s/base/datastores/mysql.yaml` içerisinde varsayılan geliştirme değeri yer almaktadır.
+* **VTGate Kimlik Bilgileri**: `k8s/base/configs/users.json` dosyasından `secretGenerator` vasıtasıyla `vtgate-auth` Secret'ına dönüştürülür.
+* **Production Önerisi**: Sealed Secrets, External Secrets Operator veya Vault kullanılmalıdır. Örnek gizli bilgi şablonları için `secret.example.yaml` ve `users.example.json` referans alınmalıdır.
 
 ---
 
-## 📄 Lisans
+## 13. MySQL Bağlantısı
 
-Bu proje MIT Lisansı ile lisanslanmıştır. Dilediğiniz gibi çatallayabilir (fork), kendi projelerinizde başlangıç şablonu (boilerplate) olarak özgürce kullanabilirsiniz.
+Uygulama Pod'ları veritabanına küme içi DNS ile erişir:
+
+```text
+Host: mysql-service
+Port: 3306
+Secret: mysql-secret (Key: MYSQL_ROOT_PASSWORD)
+```
+
+Bağlantı doğrulama testi:
+
+```bash
+kubectl run mysql-client --rm -it --restart=Never --image=mysql:8.0 -n <namespace> -- mysql -h mysql-service -u root -p
+```
+
+---
+
+## 14. Redis Bağlantısı
+
+Redis servis bilgileri:
+
+```text
+Host: redis-service
+Port: 6379
+Eviction Policy: allkeys-lru (Max Memory: 200mb)
+```
+
+Bağlantı doğrulama testi:
+
+```bash
+kubectl run redis-client --rm -it --restart=Never --image=redis:7-alpine -n <namespace> -- redis-cli -h redis-service ping
+```
+
+---
+
+## 15. Vitess Bağlantısı
+
+Vitess VTGate MySQL Proxy erişim bilgileri:
+
+```text
+Host: vtgate-zone1-service
+Port: 15306
+User: app (users.json içerisinde tanımlı)
+```
+
+VTGate test komutu:
+
+```bash
+kubectl run mysql-client --rm -it --restart=Never --image=mysql:8.0 -n <namespace> -- mysql -h vtgate-zone1-service -P 15306 -u app -p
+```
+
+---
+
+## 16. VTGate Authentication
+
+VTGate statik kimlik doğrulaması `k8s/base/configs/users.json` konfigürasyonu üzerinden yürütülür. `k8s/base/kustomization.yaml` içerisindeki `secretGenerator` bunu `vtgate-auth` Secret'ı haline getirir ve VitessCluster tanımına bağlar.
+
+---
+
+## 17. phpMyAdmin Erişim Güvenliği
+
+* **Dev Ortamı**: `http://pma.local` üzerinden erişilebilir.
+* **Prod Ortamı**: Güvenlik açığı oluşmaması için production yamasında (`k8s/overlays/prod/patches/phpmyadmin-patch.yaml`) `replicas: 0` olarak ayarlanmış ve public Ingress'ten kaldırılmıştır.
+* **Yönetici Geçici Erişimi (Port-Forward)**:
+  Gerekli durumlarda `replicas: 1` yapılıp port-forwarding ile güvenli erişim sağlanır:
+  ```bash
+  kubectl port-forward svc/pma-service 8081:8080 -n <namespace>
+  ```
+
+---
+
+## 18. HPA Çalışma Mantığı
+
+`k8s/base/apps/hpa.yaml` kaynağı `app-deployment` kaynağını izler:
+
+* **Minimum Replica**: 2
+* **Maksimum Replica**: 10
+* **Hedef CPU**: %70 ortalama kullanım
+* **Hedef Memory**: %80 ortalama kullanım
+
+HPA'nın doğru çalışabilmesi için `app.yaml` içinde hem Nginx hem de PHP-FPM konteynerleri için CPU/RAM `requests` değerleri tanımlanmıştır.
+
+---
+
+## 19. Storage ve PVC Kullanımı
+
+MySQL verileri `mysql-pvc` PersistentVolumeClaim ile saklanır (`storage: 2Gi`, `accessModes: ReadWriteOnce`). Pod yeniden başlatılsa bile veri kalıcılığı korunur.
+
+---
+
+## 20. Backup ve Restore
+
+### MySQL Yedekleme (Dump)
+```bash
+kubectl exec deployment/mysql-deployment -n <namespace> -- mysqldump -u root -p<password> --all-databases > backup.sql
+```
+
+### MySQL Geri Yükleme (Restore)
+```bash
+kubectl exec -i deployment/mysql-deployment -n <namespace> -- mysql -u root -p<password> < backup.sql
+```
+
+---
+
+## 21. Deployment Güncelleme
+
+Yeni uygulama imajını yayınlamak için:
+
+```bash
+kubectl set image deployment/app-deployment php-container=my-php-app:v2 -n <namespace>
+```
+
+Rollout durumunu izleme:
+
+```bash
+kubectl rollout status deployment/app-deployment -n <namespace>
+```
+
+---
+
+## 22. Rollback
+
+Hatalı bir güncellemede önceki sürüme dönmek için:
+
+```bash
+# Geçmiş güncellemeleri listele
+kubectl rollout history deployment/app-deployment -n <namespace>
+
+# Bir önceki sürüme geri dön
+kubectl rollout undo deployment/app-deployment -n <namespace>
+```
+
+---
+
+## 23. Log Görüntüleme
+
+```bash
+# Nginx konteyner logları
+kubectl logs -f deployment/app-deployment -n <namespace> -c nginx-container
+
+# PHP-FPM konteyner logları
+kubectl logs -f deployment/app-deployment -n <namespace> -c php-container
+
+# MySQL logları
+kubectl logs -f deployment/mysql-deployment -n <namespace>
+```
+
+---
+
+## 24. Hata Ayıklama (Troubleshooting)
+
+```bash
+# Pod durumlarını ayrıntılı görüntüleme
+kubectl get pods -n <namespace> -o wide
+
+# Pod olaylarını ve probe hatalarını inceleme
+kubectl describe pod <pod-name> -n <namespace>
+
+# Çöken konteynerin önceki loglarını okuma
+kubectl logs <pod-name> -n <namespace> -c <container-name> --previous
+```
+
+---
+
+## 25. Sistemi Kaldırma
+
+```bash
+# Dev ortamını kaldır
+kubectl delete -k k8s/overlays/dev
+
+# Prod ortamını kaldır
+kubectl delete -k k8s/overlays/prod
+```
+
+> ⚠️ **Uyarı**: Kümeyi silmek PVC verilerini de silebilir. Kalıcı verilerinizi yedeklediğinizden emin olun.
+
+---
+
+## 26. Bilinen Riskler
+
+1. **MySQL Tek Replica**: `mysql-deployment` tek replica olarak çalışmaktadır. Fiziksel node arızasında HA sağlamaz. High Availability için StatefulSet veya Vitess sharding tercih edilmelidir.
+2. **Redis Restart Oturum Kaybı**: Redis ephemeral (AOF/RDB kapalı) çalıştığı için Pod yeniden başladığında önbellek ve oturum verileri temizlenir.
+3. **Vitess etcd Verisi**: Vitess topology etcd backend'i sıfırlanırsa Vitess sharding metadata'sı kaybolur.
+
+---
+
+## 27. Production Önerileri
+
+* **Secret Yönetimi**: Production parolalarını Git deposuna yazmayın; HashiCorp Vault veya External Secrets Operator kullanın.
+* **Database High Availability**: MySQL için Vitess sharding kümesini birincil veri deposu olarak ölçeklendirin.
+* **Network Policies**: Konteynerler arası trafiği kısıtlamak için varsayılan NetworkPolicy kurallarını aktif edin.
+* **Monitoring & Alerting**: Prometheus & Grafana ile Pod, CPU/RAM ve veritabanı metriklerini izleyin.

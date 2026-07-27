@@ -1,0 +1,23 @@
+# ==============================================================================
+# Production App Deployment Yaması (Pod Anti-Affinity & HA)
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-deployment
+spec:
+  replicas: 2
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - php-app
+                topologyKey: kubernetes.io/hostname

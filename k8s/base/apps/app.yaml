@@ -6,7 +6,12 @@ kind: Deployment
 metadata:
   name: app-deployment
 spec:
-  replicas: 1
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: php-app
@@ -15,6 +20,7 @@ spec:
       labels:
         app: php-app
     spec:
+      terminationGracePeriodSeconds: 30
       volumes:
         - name: app-files
           emptyDir: {}
@@ -26,6 +32,8 @@ spec:
         - name: copy-app-files
           image: my-php-app:v1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
           command: ["sh", "-c", "cp -r /var/www/html/* /app/"]
           volumeMounts:
             - name: app-files
@@ -33,6 +41,8 @@ spec:
       containers:
         - name: nginx-container
           image: nginx:alpine
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 80
           resources:
@@ -42,6 +52,22 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           volumeMounts:
             - name: app-files
               mountPath: /var/www/html
@@ -51,6 +77,8 @@ spec:
         - name: php-container
           image: my-php-app:v1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 9000
           resources:
@@ -60,12 +88,26 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           volumeMounts:
             - name: app-files
               mountPath: /var/www/html
 ---
 # ==============================================================================
-# 2. Web Uygulaması Dış Erişim Servisi (LoadBalancer Service)
+# 2. Web Uygulaması Dış Erişim Servisi (ClusterIP Service)
 # ==============================================================================
 apiVersion: v1
 kind: Service
@@ -79,3 +121,4 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 80
+

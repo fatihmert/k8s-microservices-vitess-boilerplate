@@ -18,14 +18,39 @@ spec:
       containers:
         - name: phpmyadmin
           image: phpmyadmin/phpmyadmin
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
           env:
             - name: PMA_HOST
               value: "mysql-service"
 ---
 # ==============================================================================
-# 2. phpMyAdmin Dış Erişim Servisi (LoadBalancer Service)
+# 2. phpMyAdmin Dış Erişim Servisi (ClusterIP Service)
 # ==============================================================================
 apiVersion: v1
 kind: Service
