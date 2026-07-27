@@ -461,7 +461,15 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --values k8s/overlays/prod/monitoring/values-prod.yaml
 ```
 
-### 2. Uygulama Exporter ve Monitoring Bileşenleri
+### 2. Grafana Yönetici Giriş Bilgilerini Alma (Admin Credentials)
+
+Grafana varsayılan kullanıcı adı **`admin`**'dir. Rastgele üretilen oturum şifresini Kubernetes Secret içerisinden çözerek almak için şu komut çalıştırılır:
+
+```bash
+kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+```
+
+### 3. Uygulama Exporter ve Monitoring Bileşenleri
 
 * **Nginx Exporter**: `app-deployment` Pod'u içine sidecar olarak eklenmiştir (Port 9113). `nginx-servicemonitor.yaml` ile taranır.
 * **MySQL Exporter**: `mysql-deployment` Pod'u içine `mysqld-exporter` sidecar olarak eklenmiştir (Port 9104). `mysql-servicemonitor.yaml` ile taranır.
