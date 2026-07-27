@@ -28,33 +28,33 @@ Sistem; web sunucu (Nginx), uygulama katmanı (PHP-FPM), önbellek katmanı (Red
 
 ```mermaid
 graph TD
-    Client["🌐 İstemci / Tarayıcı"] -->|app.local / app.cyclechain.io| Ingress["🚦 Ingress Controller (Nginx Ingress)"]
-    Client -->|grafana.local / grafana.cyclechain.io| Ingress
-    Client -->|prometheus.local / prometheus.cyclechain.io| Ingress
-    Client -->|pma.local (Dev Only)| Ingress
+    Client["🌐 İstemci / Tarayıcı"] -->|"app.local / app.cyclechain.io"| Ingress["🚦 Ingress Controller"]
+    Client -->|"grafana.local / grafana.cyclechain.io"| Ingress
+    Client -->|"prometheus.local / prometheus.cyclechain.io"| Ingress
+    Client -->|"pma.local - Dev Only"| Ingress
 
-    subgraph Kubernetes Cluster
-        CertManager["🔐 Cert-Manager (Let's Encrypt SSL)"] .-> Ingress
+    subgraph Cluster ["Kubernetes Cluster"]
+        CertManager["🔐 Cert-Manager SSL"] .-> Ingress
 
-        subgraph Application Namespace ["Application Namespace (default)"]
-            Ingress -->|Port 80| AppService["Service: app-service"]
-            Ingress -->|Port 8080| PMAService["Service: pma-service"]
+        subgraph AppNS ["Application Namespace (default)"]
+            Ingress -->|"Port 80"| AppService["Service: app-service"]
+            Ingress -->|"Port 8080"| PMAService["Service: pma-service"]
 
-            subgraph AppPod ["App Pod (Multi-Container Deployment)"]
+            subgraph AppPod ["App Pod Multi-Container"]
                 AppService --> NginxContainer["Konteyner: Nginx Alpine"]
-                NginxContainer -->|FastCGI 127.0.0.1:9000| PHPContainer["Konteyner: PHP 8.2-FPM"]
-                NginxExporter["Sidecar: nginx-exporter (Port 9113)"] .->|Stub Status 8081| NginxContainer
+                NginxContainer -->|"FastCGI 127.0.0.1:9000"| PHPContainer["Konteyner: PHP 8.2-FPM"]
+                NginxExporter["Sidecar: nginx-exporter (Port 9113)"] .->|"Stub Status 8081"| NginxContainer
             end
 
-            HPA["⚡ HPA (Auto-scaler Min 2 - Max 10)"] .->|Target CPU 70% / RAM 80%| AppPod
+            HPA["⚡ HPA Auto-scaler"] .->|"Target CPU 70% / RAM 80%"| AppPod
 
-            subgraph MySQLPod ["MySQL Pod (Datastore)"]
+            subgraph MySQLPod ["MySQL Pod Datastore"]
                 MySQLService["Service: mysql-service"] --> MySQLContainer["Konteyner: MySQL 8.0"]
                 MySQLExporter["Sidecar: mysqld-exporter (Port 9104)"] .-> MySQLContainer
-                MySQLContainer --- MySQLPVC[("PersistentVolumeClaim (10Gi Storage)")]
+                MySQLContainer --- MySQLPVC[("PersistentVolumeClaim Storage")]
             end
 
-            subgraph RedisPod ["Redis Pod (Cache Layer)"]
+            subgraph RedisPod ["Redis Pod Cache Layer"]
                 RedisService["Service: redis-service"] --> RedisContainer["Konteyner: Redis 7"]
                 RedisExporter["Sidecar: redis-exporter (Port 9121)"] .-> RedisContainer
             end
@@ -67,29 +67,29 @@ graph TD
             end
 
             BlackboxPod["Pod: Blackbox Exporter (Port 9115)"]
-            PMAService --> PMAPod["Pod: phpMyAdmin (Dev: 1 | Prod: 0 Replicas)"]
+            PMAService --> PMAPod["Pod: phpMyAdmin"]
 
-            PHPContainer -->|Port 3306| MySQLService
-            PHPContainer -->|Port 6379| RedisService
-            PHPContainer -->|Port 15306| VTGateService
+            PHPContainer -->|"Port 3306"| MySQLService
+            PHPContainer -->|"Port 6379"| RedisService
+            PHPContainer -->|"Port 15306"| VTGateService
         end
 
-        subgraph Monitoring Namespace ["Monitoring Namespace (monitoring)"]
-            Ingress -->|Port 80| GrafanaService["Service: Grafana"]
-            Ingress -->|Port 9090| PrometheusService["Service: Prometheus"]
+        subgraph MonNS ["Monitoring Namespace (monitoring)"]
+            Ingress -->|"Port 80"| GrafanaService["Service: Grafana"]
+            Ingress -->|"Port 9090"| PrometheusService["Service: Prometheus"]
 
-            GrafanaService --> Grafana["📊 Grafana (Dashboards & Visualizations)"]
-            PrometheusService --> Prometheus["📈 Prometheus Server (Metrics Engine)"]
-            Prometheus --> Alertmanager["🔔 Alertmanager (Notification Router)"]
+            GrafanaService --> Grafana["📊 Grafana Dashboards"]
+            PrometheusService --> Prometheus["📈 Prometheus Server"]
+            Prometheus --> Alertmanager["🔔 Alertmanager"]
 
             Alertmanager --> Notifications["✉️ Discord / Slack / Webhook"]
 
-            Prometheus .->|Scrape ServiceMonitor 9113| NginxExporter
-            Prometheus .->|Scrape ServiceMonitor 9104| MySQLExporter
-            Prometheus .->|Scrape ServiceMonitor 9121| RedisExporter
-            Prometheus .->|Scrape PodMonitor 15001| VTGate
-            Prometheus .->|Probe CRD 9115| BlackboxPod
-            BlackboxPod .->|Synthetic HTTP 200 & SSL Probe| Ingress
+            Prometheus .->|"Scrape ServiceMonitor 9113"| NginxExporter
+            Prometheus .->|"Scrape ServiceMonitor 9104"| MySQLExporter
+            Prometheus .->|"Scrape ServiceMonitor 9121"| RedisExporter
+            Prometheus .->|"Scrape PodMonitor 15001"| VTGate
+            Prometheus .->|"Probe CRD 9115"| BlackboxPod
+            BlackboxPod .->|"Synthetic HTTP & SSL Probe"| Ingress
         end
     end
 ```
