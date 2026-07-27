@@ -71,22 +71,29 @@ Ingress Controller
     ├── base/                     # Temel Altyapı Tanımları
     │   ├── kustomization.yaml    # Base Kustomize manifest listesi & secret/configmap jeneratörleri
     │   ├── apps/                 # Uygulama Katmanı Manifestleri
-    │   │   ├── app.yaml          # Nginx + PHP-FPM Deployment & Service (Probes, Graceful Shutdown, SecurityContext)
+    │   │   ├── app.yaml          # Nginx + PHP-FPM Deployment & Service (Probes, Exporter Sidecar)
     │   │   ├── hpa.yaml          # Horizontal Pod Autoscaler
     │   │   ├── ingress.yaml      # HTTP Ingress Controller & Local Domain Kuralları
     │   │   └── phpmyadmin.yaml   # phpMyAdmin Deployment & Service
     │   ├── configs/              # Konfigürasyon Dosyaları
-    │   │   ├── default.conf      # Nginx Konfigürasyonu
+    │   │   ├── default.conf      # Nginx Server & Status Locations
     │   │   └── users.json        # Vitess VTGate Statik Kimlik Doğrulama Dosyası
-    │   └── datastores/           # Veritabanı & Cache Katmanı
-    │       ├── mysql.yaml        # MySQL Secret, PVC, Deployment & Service
-    │       ├── redis.yaml        # Redis Deployment (LRU Eviction) & Service
-    │       └── vitess.yaml       # VitessCluster CRD & VTGate Service
+    │   ├── datastores/           # Veritabanı & Cache Katmanı
+    │   │   ├── mysql.yaml        # MySQL Secret, PVC, mysqld-exporter Sidecar
+    │   │   ├── redis.yaml        # Redis Deployment (LRU Eviction), redis-exporter Sidecar
+    │   │   └── vitess.yaml       # VitessCluster CRD & VTGate Service
+    │   └── monitoring/           # Gözlemlenebilirlik (Observability) Tanımları
+    │       ├── servicemonitors.yaml # Nginx, MySQL, Redis ServiceMonitors
+    │       ├── vitess-podmonitor.yaml # Vitess PodMonitor (VTGate, VTTablet)
+    │       ├── prometheus-rules.yaml # Alertmanager Alarm Kuralları (RED & High Memory)
+    │       └── grafana-dashboard-configmap.yaml # Grafana Pano ConfigMap (Auto-Discovery)
     └── overlays/                 # Ortama Özel Yapılandırmalar
         ├── dev/                  # Development Ortamı
         │   └── kustomization.yaml
         └── prod/                 # Production Ortamı
             ├── kustomization.yaml
+            ├── monitoring/
+            │   └── values-prod.yaml       # kube-prometheus-stack Production Helm Konfigürasyonu
             └── patches/
                 ├── app-patch.yaml         # Prod Replicas (2) & Pod Anti-Affinity
                 ├── ingress-patch.yaml     # Prod SSL/TLS & cyclechain.io Ingress Yaması
@@ -123,7 +130,7 @@ minikube image build -t my-php-app:v1 ./app
 
 ## 7. Development Kurulumu
 
-Geliştirme ortamında varsayılan domainler: `app.local` ve `pma.local`.
+Geliştirme ortamında varsayılan domainler: `app.local`, `pma.local`, `grafana.local`, `prometheus.local`.
 
 1. **Dev Ortamını Yayınlama**:
    ```bash
@@ -132,18 +139,20 @@ Geliştirme ortamında varsayılan domainler: `app.local` ve `pma.local`.
 
 2. **Hosts Dosyası Tanımlaması (`/etc/hosts`)**:
    ```bash
-   sudo sh -c 'echo "127.0.0.1 app.local pma.local" >> /etc/hosts'
+   sudo sh -c 'echo "127.0.0.1 app.local pma.local grafana.local prometheus.local" >> /etc/hosts'
    ```
 
 3. **Erişim**:
    * Uygulama: `http://app.local`
    * phpMyAdmin: `http://pma.local`
+   * Grafana Panosu: `http://grafana.local`
+   * Prometheus Arayüzü: `http://prometheus.local`
 
 ---
 
 ## 8. Production Kurulumu
 
-Production ortamında canlı domainler: `app.cyclechain.io` (SSL/TLS ile).
+Production ortamında canlı domainler: `app.cyclechain.io`, `grafana.cyclechain.io`, `prometheus.cyclechain.io` (SSL/TLS ile).
 
 1. **Production Ortamını Yayınlama**:
    ```bash
@@ -152,7 +161,7 @@ Production ortamında canlı domainler: `app.cyclechain.io` (SSL/TLS ile).
 
 2. **Gözlemlenen Production Özellikleri**:
    * `app-deployment` min 2 replica ve **Pod Anti-Affinity** ile farklı node'larda çalışır.
-   * Ingress `cert-manager` Let's Encrypt entegrasyonu ile SSL sertifikasını otomatik yönetir.
+   * Ingress `cert-manager` Let's Encrypt entegrasyonu ile SSL sertifikalarını otomatik yönetir (`app.cyclechain.io`, `grafana.cyclechain.io`, `prometheus.cyclechain.io`).
    * `phpmyadmin` kamuya açık değildir (replicas: 0).
 
 ---
@@ -422,3 +431,36 @@ Projede manifest politika kurallarını ve canlı küme entegrasyonunu doğrulam
    ```bash
    ./tests/e2e_cluster_test.sh default dev
    ```
+
+---
+
+## 29. Prometheus & Grafana Monitoring (Observability)
+
+Sistemin izlenebilirliği, ayrı bir `monitoring` namespace'inde çalışan **kube-prometheus-stack** Helm chart'ı ve uygulamaya özel deklaratif Kustomize kaynakları (`ServiceMonitor`, `PodMonitor`, `PrometheusRule`) ile yönetilir.
+
+### 1. `kube-prometheus-stack` Kurulumu (Helm)
+
+```bash
+# Prometheus Helm Reposunu Ekleme
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# Development Basit Kurulum
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace
+
+# Production Kurulum (Kalıcı PVC Disk, SSL Ingress & Custom Retention)
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  --values k8s/overlays/prod/monitoring/values-prod.yaml
+```
+
+### 2. Uygulama Exporter ve Monitoring Bileşenleri
+
+* **Nginx Exporter**: `app-deployment` Pod'u içine sidecar olarak eklenmiştir (Port 9113). `nginx-servicemonitor.yaml` ile taranır.
+* **MySQL Exporter**: `mysql-deployment` Pod'u içine `mysqld-exporter` sidecar olarak eklenmiştir (Port 9104). `mysql-servicemonitor.yaml` ile taranır.
+* **Redis Exporter**: `redis-deployment` Pod'u içine `redis_exporter` sidecar olarak eklenmiştir (Port 9121). `redis-servicemonitor.yaml` ile taranır.
+* **Vitess PodMonitor**: Vitess `vtgate` proxy ve tablet metrikleri `vitess-podmonitor.yaml` ile dinamik olarak taranır.
+* **Alertmanager Alarmları**: `prometheus-rules.yaml` ile tanımlanmış High Memory (>%85), MySQL Down, Redis Eviction ve VTGate Down alarm kuralları.
+* **Grafana Dashboard**: `grafana-dashboard-configmap.yaml` ile Grafana sidecar'ına otomatik yüklenen genel bakış panosu.
+

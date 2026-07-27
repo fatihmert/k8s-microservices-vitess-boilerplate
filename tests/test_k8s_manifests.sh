@@ -86,6 +86,29 @@ assert_test "Production Ingress TLS Sertifikası (app-tls-cert) Tanımlı" $?
 echo "$PROD_MANIFEST" | grep -q "cert-manager.io/cluster-issuer: letsencrypt-prod"
 assert_test "Production Ingress cert-manager Annotation Tanımlı" $?
 
+# 3. Gözlemlenebilirlik (Monitoring) Politika Testleri
+echo -e "\n--- 3. Gözlemlenebilirlik (Monitoring) Politika Testleri ---"
+
+# Test: Nginx, Redis, MySQL Exporter Sidecar'ları
+echo "$BASE_MANIFEST" | grep -q "nginx-exporter" && echo "$BASE_MANIFEST" | grep -q "redis-exporter" && echo "$BASE_MANIFEST" | grep -q "mysql-exporter"
+assert_test "Nginx, Redis ve MySQL Exporter Sidecar Konteynerleri Tanımlı" $?
+
+# Test: ServiceMonitor Kaynakları
+echo "$BASE_MANIFEST" | grep -q "kind: ServiceMonitor"
+assert_test "Prometheus ServiceMonitor Kaynakları Tanımlı" $?
+
+# Test: Vitess PodMonitor Kaynağı
+echo "$BASE_MANIFEST" | grep -q "kind: PodMonitor"
+assert_test "Vitess PodMonitor Kaynağı Tanımlı" $?
+
+# Test: PrometheusRule Alarm Kuralları
+echo "$BASE_MANIFEST" | grep -q "kind: PrometheusRule"
+assert_test "PrometheusRule Alarm Kuralları Tanımlı" $?
+
+# Test: Grafana Dashboard ConfigMap
+echo "$BASE_MANIFEST" | grep -q "grafana_dashboard:"
+assert_test "Grafana Dashboard ConfigMap (Sidecar Auto-Discovery) Tanımlı" $?
+
 echo -e "\n=========================================================="
 echo -e " 📊 TEST SONUÇLARI: ${GREEN}${PASSED_TESTS} Başarılı${NC} | ${RED}${FAILED_TESTS} Hatalı${NC}"
 echo "=========================================================="
@@ -93,3 +116,4 @@ echo "=========================================================="
 if [ "$FAILED_TESTS" -ne 0 ]; then
   exit 1
 fi
+

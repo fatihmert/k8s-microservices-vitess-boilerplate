@@ -1,0 +1,21 @@
+# ==============================================================================
+# Prometheus PodMonitor (Vitess VTGate, VTTablet, VTCtld)
+# ==============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vitess-podmonitor
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      planetscale.com/component: vtgate
+  podMetricsEndpoints:
+    - port: web
+      path: /metrics
+      interval: 30s
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: "go_memstats_.*"
+          action: drop

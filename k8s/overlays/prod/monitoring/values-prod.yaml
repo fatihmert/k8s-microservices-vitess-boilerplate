@@ -1,0 +1,69 @@
+# ==============================================================================
+# Production Helm Values for kube-prometheus-stack
+# ==============================================================================
+# Usage:
+# helm upgrade --install kube-prometheus-stack \
+#   prometheus-community/kube-prometheus-stack \
+#   --namespace monitoring \
+#   --create-namespace \
+#   --values k8s/overlays/prod/monitoring/values-prod.yaml
+# ==============================================================================
+
+grafana:
+  enabled: true
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  admin:
+    existingSecret: grafana-admin-credentials
+    userKey: admin-user
+    passwordKey: admin-password
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.cyclechain.io
+
+    tls:
+      - secretName: grafana-cyclechain-tls
+        hosts:
+          - grafana.cyclechain.io
+
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    retentionSize: 40GB
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 50Gi
+
+    # Helm release adına bağımlı olmadan ServiceMonitor ve PodMonitor seçilmesini sağlar
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi

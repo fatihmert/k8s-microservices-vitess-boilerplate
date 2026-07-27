@@ -1,0 +1,65 @@
+# ==============================================================================
+# PrometheusRule - Alertmanager Alarm Kuralları
+# ==============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cyclechain-application-alerts
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: cyclechain.application
+      rules:
+        - alert: ApplicationPodsUnavailable
+          expr: |
+            kube_deployment_status_replicas_available{deployment="app-deployment"}
+            <
+            kube_deployment_spec_replicas{deployment="app-deployment"}
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CycleChain uygulama podları eksik veya erişilemiyor"
+            description: "Mevcut çalışan replica sayısı istenen hedefin altında."
+
+        - alert: ApplicationHighMemoryUsage
+          expr: |
+            (
+              sum by (pod) (container_memory_working_set_bytes{pod=~"app-deployment-.*", container!=""})
+              /
+              sum by (pod) (kube_pod_container_resource_limits{pod=~"app-deployment-.*", resource="memory"})
+            ) > 0.85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Uygulama bellek kullanımı %85 eşiğini aştı"
+            description: "Pod bellek tüketimi limit değerinin %85'inin üzerine çıktı."
+
+        - alert: MySQLDown
+          expr: mysql_up == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "MySQL veritabanı kapalı!"
+            description: "MySQL servisine ulaşılamıyor."
+
+        - alert: RedisEvictedKeysIncreasing
+          expr: rate(redis_evicted_keys_total[5m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis bellek limiti nedeniyle key siliyor (Eviction)"
+            description: "Redis maxmemory sınırına ulaştı, key eviction gerçekleşiyor."
+
+        - alert: VitessVTGateDown
+          expr: kube_pod_status_ready{condition="true", pod=~".*-vtgate-.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vitess VTGate Proxy kapalı!"
+            description: "Vitess VTGate proxy sunucusuna erişilemiyor."
