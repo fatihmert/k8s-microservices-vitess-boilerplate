@@ -9,11 +9,12 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Vitess VTGate Proxy Durumu",
+      "title": "Vitess VTGate Proxy Canlılık Durumu",
       "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
       "targets": [
         { "expr": "kube_pod_status_ready{pod=~'.*-vtgate-.*'}", "refId": "A" }
-      ]
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } }
     },
     {
       "type": "stat",
@@ -33,7 +34,7 @@
     },
     {
       "type": "timeseries",
-      "title": "VTGate Sorgu Trafiği (QPS)",
+      "title": "VTGate Sharded Sorgu Trafiği (QPS)",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         { "expr": "sum(rate(vtgate_requests[1m])) by (keyspace)", "legendFormat": "{{keyspace}} QPS", "refId": "A" }
@@ -41,10 +42,20 @@
     },
     {
       "type": "timeseries",
-      "title": "Vitess Tablet Replication Lag",
+      "title": "Vitess Tablet Replication Lag (Seconds)",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         { "expr": "vttablet_replication_lag_seconds", "legendFormat": "{{shard}} Replication Lag", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "VTGate Sorgu Gecikmesi (Latency Percentiles - p50 / p95 / p99)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(vtgate_api_latency_seconds_bucket[1m])) by (le))", "legendFormat": "p50 Latency (s)", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(vtgate_api_latency_seconds_bucket[1m])) by (le))", "legendFormat": "p95 Latency (s)", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(vtgate_api_latency_seconds_bucket[1m])) by (le))", "legendFormat": "p99 Latency (s)", "refId": "C" }
       ]
     }
   ],

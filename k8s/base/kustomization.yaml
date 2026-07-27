@@ -17,6 +17,8 @@ resources:
   - monitoring/vitess-podmonitor.yaml
   - monitoring/prometheus-rules.yaml
   - monitoring/alertmanager-config.yaml
+  - monitoring/blackbox-exporter.yaml
+
 
 
 # Otomatik Secret üreteci (Vitess VTGate Auth)

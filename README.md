@@ -3,6 +3,7 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.30+-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Vitess](https://img.shields.io/badge/Vitess-CNCF_Graduated-E84A5F?style=for-the-badge&logo=vitess&logoColor=white)](https://vitess.io/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![Blackbox Exporter](https://img.shields.io/badge/Blackbox_Exporter-Synthetic_Probe-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Observability-F46800?style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com/)
 [![Nginx Ingress](https://img.shields.io/badge/Nginx_Ingress-Controller-009639?style=for-the-badge&logo=nginx&logoColor=white)](https://kubernetes.github.io/ingress-nginx/)
 [![Cert-Manager](https://img.shields.io/badge/Cert--Manager-SSL_TLS-326CE5?style=for-the-badge&logo=letsencrypt&logoColor=white)](https://cert-manager.io/)
@@ -17,7 +18,7 @@
 
 Bu proje; modern, ölçeklenebilir ve yüksek erişilebilirlikli mikroservis mimarisini bulut ve yerel Kubernetes kümeleri üzerinde çalıştırmak için hazırlanmış **Production-Ready Kubernetes & Vitess Sharding Başlangıç Şablonudur (Boilerplate)**.
 
-Sistem; web sunucu (Nginx), uygulama katmanı (PHP-FPM), önbellek katmanı (Redis 7), birincil veritabanı (MySQL 8.0), yatay veritabanı bölümleme/ölçeklendirme altyapısı olan **Vitess Sharded MySQL Proxy (`VTGate`)** ve izleme bileşenlerini (**Prometheus + Grafana**) Kustomize yapısıyla sunar.
+Sistem; web sunucu (Nginx), uygulama katmanı (PHP-FPM), önbellek katmanı (Redis 7), birincil veritabanı (MySQL 8.0), yatay veritabanı bölümleme/ölçeklendirme altyapısı olan **Vitess Sharded MySQL Proxy (`VTGate`)** ve izleme bileşenlerini (**Prometheus + Grafana + Blackbox Exporter**) Kustomize yapısıyla sunar.
 
 ---
 
@@ -36,7 +37,8 @@ Ingress Controller (Nginx Ingress)
   │           └── Nginx Exporter Sidecar (Port 9113)
   │                 ├── MySQL 8.0 (mysql-service:3306) + Exporter Sidecar (Port 9104)
   │                 ├── Redis 7 (redis-service:6379) + Exporter Sidecar (Port 9121)
-  │                 └── Vitess VTGate (vtgate-zone1-service:15306)
+  │                 ├── Vitess VTGate (vtgate-zone1-service:15306)
+  │                 └── Blackbox Exporter (Port 9115)
   │                       ├── Vitess Tablets (MySQL Shards)
   │                       ├── vtctld (Vitess Admin)
   │                       └── etcd topology
@@ -62,6 +64,7 @@ Ingress Controller (Nginx Ingress)
 | **Redis** | `redis:7-alpine` | Ön bellek & Oturum katmanı (Port 6379) |
 | **MySQL** | `mysql:8.0` | Birincil ilişkisel veritabanı (Port 3306, PVC ile kalıcı) |
 | **Vitess** | `planetscale.com/v2` (VitessCluster) | CNCF mezunu yatay MySQL bölümleme & Proxy (Port 15306) |
+| **Blackbox Exporter** | `prom/blackbox-exporter:v0.25.0` | Sintetik HTTP 200 OK ve SSL sertifika süresi takibi (Port 9115) |
 | **phpMyAdmin** | `phpmyadmin/phpmyadmin` | Veritabanı yönetim arayüzü (Dev: `pma.local`, Prod: Güvenlik amacıyla kapalı) |
 | **HPA** | `autoscaling/v2` | CPU (%70) ve RAM (%80) metriklerine göre (Min 2 - Max 10 Pod) otomatik ölçeklendirme |
 | **Kustomize** | `base`, `dev`, `prod` | Çevreye özel (Dev/Prod) konfigürasyon ayrımı ve deklaratif yama yönetimi |

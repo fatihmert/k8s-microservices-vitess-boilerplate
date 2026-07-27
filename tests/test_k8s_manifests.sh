@@ -43,9 +43,15 @@ assert_test "Kustomize Overlay Dev Render Başarılı" $?
 kubectl kustomize k8s/overlays/prod > /dev/null 2>&1
 assert_test "Kustomize Overlay Prod Render Başarılı" $?
 
+# 2. Python Yapısal Veri ve Nesne Doğrulama Testi
+echo -e "\n--- 2. Python Yapısal Nesne & Güvenlik Doğrulama Testi ---"
+python3 tests/validate_structure.py
+assert_test "Python Deep Structure Validation Başarılı" $?
+
 # Manifest içeriklerini değişkenlere al
 PROD_MANIFEST=$(kubectl kustomize k8s/overlays/prod)
 BASE_MANIFEST=$(kubectl kustomize k8s/base)
+
 
 # 2. Güvenlik ve Mimari Politika Testleri
 echo -e "\n--- 2. Mimari ve Güvenlik Politika Testleri ---"
@@ -112,6 +118,10 @@ assert_test "Grafana Dashboard ConfigMap (Sidecar Auto-Discovery) Tanımlı" $?
 # Test: AlertmanagerConfig Kaynağı
 echo "$BASE_MANIFEST" | grep -q "kind: AlertmanagerConfig"
 assert_test "AlertmanagerConfig Bildirim Kanalı Tanımlı" $?
+
+# Test: Blackbox Exporter & Synthetic Probe Kaynağı
+echo "$BASE_MANIFEST" | grep -q "blackbox-exporter" && echo "$BASE_MANIFEST" | grep -q "kind: Probe"
+assert_test "Blackbox Exporter Sintetik Uç Nokta ve SSL Takip Kaynağı Tanımlı" $?
 
 echo -e "\n=========================================================="
 echo -e " 📊 TEST SONUÇLARI: ${GREEN}${PASSED_TESTS} Başarılı${NC} | ${RED}${FAILED_TESTS} Hatalı${NC}"

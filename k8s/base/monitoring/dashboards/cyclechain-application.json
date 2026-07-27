@@ -8,34 +8,69 @@
   "liveNow": false,
   "panels": [
     {
+      "type": "stat",
+      "title": "Aktif Nginx İstemci Bağlantıları",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "nginx_connections_active", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Nginx Bekleyen Bağlantılar (Waiting / Keep-Alive)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        { "expr": "nginx_connections_waiting", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Nginx İşlenen Bağlantılar (Writing)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "nginx_connections_writing", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Uygulama Pod Restart Sayısı",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        { "expr": "sum(kube_pod_container_status_restarts_total{pod=~'app-deployment-.*'})", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } }
+    },
+    {
       "type": "timeseries",
       "title": "Trafik (HTTP Request Rate - RPS)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         { "expr": "sum(rate(nginx_http_requests_total[1m]))", "legendFormat": "Toplam RPS", "refId": "A" }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Hata Oranı (HTTP Status Codes 4xx / 5xx)",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "title": "HTTP Yanıt Kodları Dağılımı (2xx / 3xx / 4xx / 5xx)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
-        { "expr": "sum(rate(nginx_http_requests_total{status=~'5..'}[1m]))", "legendFormat": "5xx Hataları", "refId": "A" },
-        { "expr": "sum(rate(nginx_http_requests_total{status=~'4..'}[1m]))", "legendFormat": "4xx Hataları", "refId": "B" }
+        { "expr": "sum(rate(nginx_http_requests_total{status=~'2..'}[1m]))", "legendFormat": "2xx Başarılı", "refId": "A" },
+        { "expr": "sum(rate(nginx_http_requests_total{status=~'3..'}[1m]))", "legendFormat": "3xx Yönlendirme", "refId": "B" },
+        { "expr": "sum(rate(nginx_http_requests_total{status=~'4..'}[1m]))", "legendFormat": "4xx İstemci Hatası", "refId": "C" },
+        { "expr": "sum(rate(nginx_http_requests_total{status=~'5..'}[1m]))", "legendFormat": "5xx Sunucu Hatası", "refId": "D" }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Uygulama Pod CPU Kullanımı vs Requests",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "title": "Uygulama Pod CPU Kullanımı (Cores)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "targets": [
         { "expr": "sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{pod=~'app-deployment-.*'}) by (pod)", "legendFormat": "{{pod}} CPU", "refId": "A" }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Uygulama Pod Bellek (RAM) Kullanımı vs Limits",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "title": "Uygulama Pod Bellek Kullanımı (Bytes)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         { "expr": "sum(container_memory_working_set_bytes{pod=~'app-deployment-.*', container!=''}) by (pod)", "legendFormat": "{{pod}} RAM", "refId": "A" }
       ]
@@ -44,7 +79,7 @@
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["cyclechain", "red-metrics", "application"],
+  "tags": ["cyclechain", "red-metrics", "application", "nginx"],
   "time": { "from": "now-30m", "to": "now" },
   "title": "CycleChain Application & RED Metrics",
   "uid": "cyclechain-application"
