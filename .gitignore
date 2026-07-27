@@ -10,3 +10,8 @@ Thumbs.db
 # Vendor & Temp
 vendor/
 *.log
+*.tmp
+json
+/json
+test-results/
+

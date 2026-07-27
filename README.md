@@ -404,3 +404,21 @@ kubectl delete -k k8s/overlays/prod
 * **Database High Availability**: MySQL için Vitess sharding kümesini birincil veri deposu olarak ölçeklendirin.
 * **Network Policies**: Konteynerler arası trafiği kısıtlamak için varsayılan NetworkPolicy kurallarını aktif edin.
 * **Monitoring & Alerting**: Prometheus & Grafana ile Pod, CPU/RAM ve veritabanı metriklerini izleyin.
+
+---
+
+## 28. Otomatik Test ve Doğrulama (Testing & CI/CD)
+
+Projede manifest politika kurallarını ve canlı küme entegrasyonunu doğrulamak için `tests/` dizininde otomatik test scriptleri bulunmaktadır:
+
+1. **Statik Manifest ve Politika Testleri**:
+   Kustomize derlemesini, probe tanımlarını, kaynak limitlerini ve prod güvenlik kurallarını kontrol eder:
+   ```bash
+   ./tests/test_k8s_manifests.sh
+   ```
+
+2. **Canlı Küme E2E Entegrasyon Testi**:
+   Aktif bir Kubernetes kümesine (Minikube, Kind, GKE vb.) dağıtım yapıp rollout ve veritabanı bağlantı durumlarını doğrular:
+   ```bash
+   ./tests/e2e_cluster_test.sh default dev
+   ```
