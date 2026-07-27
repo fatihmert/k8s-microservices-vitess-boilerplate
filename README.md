@@ -2,6 +2,10 @@
 
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.30+-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Vitess](https://img.shields.io/badge/Vitess-CNCF_Graduated-E84A5F?style=for-the-badge&logo=vitess&logoColor=white)](https://vitess.io/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![Grafana](https://img.shields.io/badge/Grafana-Observability-F46800?style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com/)
+[![Nginx Ingress](https://img.shields.io/badge/Nginx_Ingress-Controller-009639?style=for-the-badge&logo=nginx&logoColor=white)](https://kubernetes.github.io/ingress-nginx/)
+[![Cert-Manager](https://img.shields.io/badge/Cert--Manager-SSL_TLS-326CE5?style=for-the-badge&logo=letsencrypt&logoColor=white)](https://cert-manager.io/)
 [![PHP](https://img.shields.io/badge/PHP-8.2_FPM-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![Redis](https://img.shields.io/badge/Redis-7.0_Cache-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0_DB-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
@@ -13,31 +17,38 @@
 
 Bu proje; modern, ölçeklenebilir ve yüksek erişilebilirlikli mikroservis mimarisini bulut ve yerel Kubernetes kümeleri üzerinde çalıştırmak için hazırlanmış **Production-Ready Kubernetes & Vitess Sharding Başlangıç Şablonudur (Boilerplate)**.
 
-Sistem; web sunucu (Nginx), uygulama katmanı (PHP-FPM), önbellek katmanı (Redis 7), birincil veritabanı (MySQL 8.0) ve yatay veritabanı bölümleme/ölçeklendirme altyapısı olan **Vitess Sharded MySQL Proxy (`VTGate`)** bileşenlerini Kustomize yapısıyla sunar.
+Sistem; web sunucu (Nginx), uygulama katmanı (PHP-FPM), önbellek katmanı (Redis 7), birincil veritabanı (MySQL 8.0), yatay veritabanı bölümleme/ölçeklendirme altyapısı olan **Vitess Sharded MySQL Proxy (`VTGate`)** ve izleme bileşenlerini (**Prometheus + Grafana**) Kustomize yapısıyla sunar.
 
 ---
 
 ## 2. Sistem Mimarisi
 
-Mimaride Ingress Controller trafiği kabul eder ve ilgili servislere yönlendirir:
+Mimaride Ingress Controller tüm trafiği kabul eder ve ilgili servislere yönlendirir:
 
 ```text
 Client
   ↓
-Ingress Controller
-  ├── app-service (ClusterIP:80)
+Ingress Controller (Nginx Ingress)
+  ├── app.local / app.cyclechain.io ➔ app-service (ClusterIP:80)
   │     └── App Pod (Multi-Container)
   │           ├── Nginx Alpine (FastCGI -> 127.0.0.1:9000)
-  │           └── PHP 8.2-FPM
-  │                 ├── MySQL 8.0 (mysql-service:3306)
-  │                 ├── Redis 7 (redis-service:6379)
+  │           ├── PHP 8.2-FPM (Composer + GuzzleHTTP)
+  │           └── Nginx Exporter Sidecar (Port 9113)
+  │                 ├── MySQL 8.0 (mysql-service:3306) + Exporter Sidecar (Port 9104)
+  │                 ├── Redis 7 (redis-service:6379) + Exporter Sidecar (Port 9121)
   │                 └── Vitess VTGate (vtgate-zone1-service:15306)
   │                       ├── Vitess Tablets (MySQL Shards)
   │                       ├── vtctld (Vitess Admin)
   │                       └── etcd topology
   │
-  └── pma-service (ClusterIP:8080 - Dev ortamı veya Private Admin Port-Forwarding)
-        └── phpMyAdmin
+  ├── pma.local ➔ pma-service (ClusterIP:8080 - Dev Ortamı)
+  │     └── phpMyAdmin
+  │
+  ├── grafana.local / grafana.cyclechain.io ➔ kube-prometheus-stack-grafana (ClusterIP:80)
+  │     └── Grafana Dashboards & Metrics Visualization
+  │
+  └── prometheus.local / prometheus.cyclechain.io ➔ kube-prometheus-stack-prometheus (ClusterIP:9090)
+        └── Prometheus Server (Metrics Storage & Alerting)
 ```
 
 ---
