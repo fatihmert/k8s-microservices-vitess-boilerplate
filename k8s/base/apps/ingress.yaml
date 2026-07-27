@@ -1,0 +1,37 @@
+# ==============================================================================
+# Ingress - Domain (Host) Tabanlı HTTP Yönlendirme Yapılandırması
+# ==============================================================================
+# Ingress, dış dünyadan gelen HTTP/HTTPS isteklerini domain isimlerine (host)
+# göre küme içindeki doğru servise (app-service, pma-service) yönlendirir.
+# ==============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: main-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app-service
+                port:
+                  number: 80
+    - host: pma.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pma-service
+                port:
+                  number: 8080

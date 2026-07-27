@@ -1,0 +1,40 @@
+# ==============================================================================
+# 1. phpMyAdmin Dağıtımı (Deployment)
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pma-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: phpmyadmin
+  template:
+    metadata:
+      labels:
+        app: phpmyadmin
+    spec:
+      containers:
+        - name: phpmyadmin
+          image: phpmyadmin/phpmyadmin
+          ports:
+            - containerPort: 80
+          env:
+            - name: PMA_HOST
+              value: "mysql-service"
+---
+# ==============================================================================
+# 2. phpMyAdmin Dış Erişim Servisi (LoadBalancer Service)
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: pma-service
+spec:
+  type: ClusterIP
+  selector:
+    app: phpmyadmin
+  ports:
+    - port: 8080
+      targetPort: 80

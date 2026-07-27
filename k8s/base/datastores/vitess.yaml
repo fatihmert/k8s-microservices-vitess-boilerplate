@@ -1,0 +1,47 @@
+# ==============================================================================
+# Vitess CNCF MySQL Sharded Cluster Yapılandırması
+# ==============================================================================
+# Vitess, MySQL veritabanlarını Kubernetes üzerinde yatay olarak ölçekleyen
+# ve sharding (bölümleme) işlemlerini otomatize eden CNCF mezuniyet projesidir.
+# ==============================================================================
+
+apiVersion: planetscale.com/v2
+kind: VitessCluster
+metadata:
+  name: vitess-cluster
+  namespace: default
+spec:
+  # 1. VTGate (Uygulamaların Bağlandığı MySQL Proxy Giriş Kapısı)
+  cells:
+    - name: zone1
+      gateway:
+        replicas: 1
+        authentication:
+          static:
+            secret:
+              name: vtgate-auth
+              key: users.json
+
+  # 2. Keyspaces (Veritabanı ve Sharding Yapılandırması)
+  keyspaces:
+    - name: maindb
+      partitionings:
+        - equal:
+            parts: 2
+---
+# ==============================================================================
+# Vitess VTGate Küme İçi Servisi (ClusterIP Service - Port 15306)
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: vtgate-zone1-service
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    planetscale.com/component: vtgate
+  ports:
+    - name: mysql-port
+      port: 15306
+      targetPort: 3306

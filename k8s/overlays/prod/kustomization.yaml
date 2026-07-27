@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Canlı (Production) ortamı base mimariyi devralır
+resources:
+  - ../../base
+
+# Canlı ortama özel Ingress, Domain ve SSL (Let's Encrypt) Yamaları (Patches)
+patches:
+  - path: patches/ingress-patch.yaml

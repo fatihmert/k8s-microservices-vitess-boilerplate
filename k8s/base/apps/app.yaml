@@ -1,0 +1,81 @@
+# ==============================================================================
+# 1. Web Uygulaması Dağıtımı (Custom Docker Image + Nginx + PHP-FPM)
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: php-app
+  template:
+    metadata:
+      labels:
+        app: php-app
+    spec:
+      volumes:
+        - name: app-files
+          emptyDir: {}
+        - name: nginx-config-volume
+          configMap:
+            name: nginx-config
+      # Özel imajımızdaki uygulama dosyalarını ortak ortama kopyalayan Başlatma Konteyneri (initContainer)
+      initContainers:
+        - name: copy-app-files
+          image: my-php-app:v1
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "cp -r /var/www/html/* /app/"]
+          volumeMounts:
+            - name: app-files
+              mountPath: /app
+      containers:
+        - name: nginx-container
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: app-files
+              mountPath: /var/www/html
+            - name: nginx-config-volume
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+        - name: php-container
+          image: my-php-app:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: app-files
+              mountPath: /var/www/html
+---
+# ==============================================================================
+# 2. Web Uygulaması Dış Erişim Servisi (LoadBalancer Service)
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+spec:
+  type: ClusterIP
+  selector:
+    app: php-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
