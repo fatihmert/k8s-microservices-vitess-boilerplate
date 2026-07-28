@@ -18,6 +18,7 @@ resources:
   - monitoring/prometheus-rules.yaml
   - monitoring/alertmanager-config.yaml
   - monitoring/blackbox-exporter.yaml
+  - monitoring/monitoring-ingress.yaml
 
 
 
